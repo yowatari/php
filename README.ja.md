@@ -9,9 +9,9 @@ docker run --rm ghcr.io/yowatari/php:8.5 -v
 docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm（listen 9000）
 ```
 
-タグの形は Docker 公式イメージに合わせています。`8.5` / `8.5-fpm` はブランチの最新を指し、`8.5.12` / `8.5.12-r0` は特定のビルドに固定します。イメージ内の PHP のパッケージ名は `php-yowatari`（`-fpm`、`-dev`）です。Wolfi の `php-X.Y` と衝突しないよう、別の名前にしています。
+タグの形は Docker 公式イメージに合わせています。`8.5` / `8.5-fpm` はブランチの最新を指し、`<バージョン>` / `<バージョン>-r<epoch>`（パッチなしは `-r0`、パッチありは `-r1`）は特定のビルドに固定します。今ビルドしているバージョンは [versions.json](versions.json) にあります。イメージ内の PHP のパッケージ名は `php-yowatari`（`-fpm`、`-dev`）です。Wolfi の `php-X.Y` と衝突しないよう、別の名前にしています。
 
-> **`yowatari/php-oct2026-hotfix` から名前を変えました。** 旧イメージ名 `ghcr.io/yowatari/php-oct2026-hotfix` は更新を止めたので、これ以降の修正は入りません。`ghcr.io/yowatari/php` を使ってください。名前を変えた後の署名の ID は `https://github.com/yowatari/php/.github/workflows/build.yml@…` です。
+> **`yowatari/php-oct2026-hotfix` から名前を変えました。** 旧イメージ名 `ghcr.io/yowatari/php-oct2026-hotfix` は削除しました。`ghcr.io/yowatari/php` を使ってください。名前を変えた後の署名の ID は `https://github.com/yowatari/php/.github/workflows/build.yml@…` です。
 
 このリポジトリは、2026 年 10 月の RCE の修正版を、公開当日に出すデモとして始まりました。以下はその記録です（イメージ名は新しい名前に直しています）。
 
@@ -186,7 +186,7 @@ CMD ["/app/app.php"]
 
 <!-- output: copy-app -->
 ```
-hello from 8.5.12
+hello from PHP 8.5
 ```
 
 拡張モジュールを足すなら、`melange.tmpl.yaml` の configure を変えるか、別の melange パッケージにして apko の `packages` に加えます。こちらの手順はまだ試していません（未検証）。
@@ -233,10 +233,12 @@ scripts/bump.sh 8.6    # 新しいブランチの最初の GA が php.net に出
 
 ### タグ
 
+どのブランチのどのバージョンをビルドするかは、[versions.json](versions.json) だけで決まります。
+
 | ブランチ | ソース | タグ（CLI / FPM） |
 |---|---|---|
-| 8.5 / 8.4 / 8.3 / 8.2 | php.net の修正済み tarball（8.5.12 / 8.4.27 / 8.3.36 / 8.2.35） | `8.5.12`, `8.5.12-r0`, `8.5` / `8.5.12-fpm`, `8.5-fpm` など |
-| 8.1 / 8.0 / 7.4（EOL） | 最終 tarball（8.1.34 / 8.0.30 / 7.4.33）＋ 公式バックポート | `7.4.33-r1`, `7.4` / `7.4.33-r1-fpm`, `7.4-fpm` など |
+| サポート中 | そのブランチの最新の php.net tarball | `X.Y.Z`, `X.Y.Z-r0`, `X.Y` / `X.Y.Z-fpm`, `X.Y.Z-r0-fpm`, `X.Y-fpm` |
+| EOL（`patches/X.Y/` あり） | 最終版の tarball ＋ 公式バックポート | `X.Y.Z-r1`, `X.Y` / `X.Y.Z-r1-fpm`, `X.Y-fpm` |
 
 拡張モジュールは最小構成です（mbstring, openssl, curl, zlib, mysqli / pdo_mysql, pdo_sqlite, bcmath, sockets, pcntl など。8.5 は OPcache を内蔵し、8.4 以前は opcache.so をビルドするが既定では無効）。必要なら `melange.tmpl.yaml` の configure を編集してください。
 
@@ -259,13 +261,14 @@ scripts/bump.sh 8.6    # 新しいブランチの最初の GA が php.net に出
 ### ローカルでのビルド
 
 ```sh
-scripts/render.sh 8.5.12
+v="$(jq -r 'map(select(startswith("8.5.")))[0]' versions.json)"   # or any version
+scripts/render.sh "$v"
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange keygen melange.rsa
 docker run --privileged --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange \
-  build build/8.5.12/melange.yaml --arch x86_64 --signing-key melange.rsa \
-  --source-dir build/8.5.12/src --out-dir build/8.5.12/packages
+  build "build/$v/melange.yaml" --arch x86_64 --signing-key melange.rsa \
+  --source-dir "build/$v/src" --out-dir "build/$v/packages"
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/apko \
-  build build/8.5.12/apko.yaml php-local:8.5.12 build/8.5.12/image.tar \
-  -r /work/build/8.5.12/packages -k /work/melange.rsa.pub   # FPM は apko-fpm.yaml
-docker load < build/8.5.12/image.tar
+  build "build/$v/apko.yaml" "php-local:$v" "build/$v/image.tar" \
+  -r "/work/build/$v/packages" -k /work/melange.rsa.pub   # FPM は apko-fpm.yaml
+docker load < "build/$v/image.tar"
 ```

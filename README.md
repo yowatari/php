@@ -9,9 +9,9 @@ docker run --rm ghcr.io/yowatari/php:8.5 -v
 docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm (listen 9000)
 ```
 
-Tags follow the Docker official image's shape: `8.5` / `8.5-fpm` track the branch, `8.5.12` / `8.5.12-r0` pin a build. The PHP package inside the image is `php-yowatari` (`-fpm`, `-dev`), named apart from Wolfi's `php-X.Y` so the two never collide.
+Tags follow the Docker official image's shape: `8.5` / `8.5-fpm` track the branch, `<version>` / `<version>-r<epoch>` (e.g. `-r0`, or `-r1` with patches) pin a build. The versions currently built are listed in [versions.json](versions.json). The PHP package inside the image is `php-yowatari` (`-fpm`, `-dev`), named apart from Wolfi's `php-X.Y` so the two never collide.
 
-> **Renamed from `yowatari/php-oct2026-hotfix`.** The old image name `ghcr.io/yowatari/php-oct2026-hotfix` is no longer updated and does not get today's or later fixes; use `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`.
+> **Renamed from `yowatari/php-oct2026-hotfix`.** The old image name `ghcr.io/yowatari/php-oct2026-hotfix` has been removed; use `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`.
 
 The repository started as a demo of shipping the October 2026 RCE fix on the same day it was released. That write-up follows, with image names updated.
 
@@ -186,7 +186,7 @@ CMD ["/app/app.php"]
 
 <!-- output: copy-app -->
 ```
-hello from 8.5.12
+hello from PHP 8.5
 ```
 
 To add extensions, change the configure options in `melange.tmpl.yaml`, or make a separate melange package and add it to apko's `packages`. This procedure has not been tried yet (unverified).
@@ -233,10 +233,12 @@ scripts/bump.sh 8.6    # also add a new branch once its first GA is on php.net
 
 ### Tags
 
+Which branches and versions are built is defined only in [versions.json](versions.json).
+
 | Branch | Source | Tags (CLI / FPM) |
 |---|---|---|
-| 8.5 / 8.4 / 8.3 / 8.2 | php.net fixed tarballs (8.5.12 / 8.4.27 / 8.3.36 / 8.2.35) | `8.5.12`, `8.5.12-r0`, `8.5` / `8.5.12-fpm`, `8.5-fpm`, etc. |
-| 8.1 / 8.0 / 7.4 (EOL) | Final tarballs (8.1.34 / 8.0.30 / 7.4.33) + official backports | `7.4.33-r1`, `7.4` / `7.4.33-r1-fpm`, `7.4-fpm`, etc. |
+| Supported | The branch's latest php.net tarball | `X.Y.Z`, `X.Y.Z-r0`, `X.Y` / `X.Y.Z-fpm`, `X.Y.Z-r0-fpm`, `X.Y-fpm` |
+| EOL (with `patches/X.Y/`) | The branch's final tarball + official backports | `X.Y.Z-r1`, `X.Y` / `X.Y.Z-r1-fpm`, `X.Y-fpm` |
 
 Extensions are a minimal set (mbstring, openssl, curl, zlib, mysqli / pdo_mysql, pdo_sqlite, bcmath, sockets, pcntl, etc. 8.5 has OPcache built in; 8.4 and earlier build opcache.so but leave it disabled by default). Edit the configure options in `melange.tmpl.yaml` if you need more.
 
@@ -259,13 +261,14 @@ Extensions are a minimal set (mbstring, openssl, curl, zlib, mysqli / pdo_mysql,
 ### Building locally
 
 ```sh
-scripts/render.sh 8.5.12
+v="$(jq -r 'map(select(startswith("8.5.")))[0]' versions.json)"   # or any version
+scripts/render.sh "$v"
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange keygen melange.rsa
 docker run --privileged --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange \
-  build build/8.5.12/melange.yaml --arch x86_64 --signing-key melange.rsa \
-  --source-dir build/8.5.12/src --out-dir build/8.5.12/packages
+  build "build/$v/melange.yaml" --arch x86_64 --signing-key melange.rsa \
+  --source-dir "build/$v/src" --out-dir "build/$v/packages"
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/apko \
-  build build/8.5.12/apko.yaml php-local:8.5.12 build/8.5.12/image.tar \
-  -r /work/build/8.5.12/packages -k /work/melange.rsa.pub   # for FPM, use apko-fpm.yaml
-docker load < build/8.5.12/image.tar
+  build "build/$v/apko.yaml" "php-local:$v" "build/$v/image.tar" \
+  -r "/work/build/$v/packages" -k /work/melange.rsa.pub   # for FPM, use apko-fpm.yaml
+docker load < "build/$v/image.tar"
 ```
