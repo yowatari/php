@@ -47,11 +47,6 @@ concurrency:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
-  # The image name before the repository was renamed to yowatari/php. Every
-  # publish is also copied and signed there so existing users keep getting
-  # fixes; drop this (and the mirror step) once the transition period ends.
-  # Empty in forks and before the rename, which skips the mirror step.
-  LEGACY_IMAGE: ${{ github.repository == 'yowatari/php' && 'ghcr.io/yowatari/php-oct2026-hotfix' || '' }}
   PUBLISH: ${{ github.event_name != 'pull_request' }}
   # The schedule exists to refresh base packages, so it always republishes.
   FORCE: ${{ inputs.force || github.event_name == 'schedule' }}
@@ -332,27 +327,6 @@ jobs:
               --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
             echo "verified $tag"
-          done
-
-      # Same index digest, same tags, under the pre-rename name, signed there
-      # too (cosign signatures live next to the image, per repository).
-      - name: Mirror to the legacy image name
-        if: steps.skip.outputs.skip != 'true' && env.PUBLISH == 'true' && env.LEGACY_IMAGE != ''
-        env:
-          TAGS: ${{ steps.tags.outputs.tags }}
-          TAGS_FPM: ${{ steps.tags.outputs.tags_fpm }}
-          REF: ${{ steps.publish.outputs.ref }}
-          REF_FPM: ${{ steps.publish.outputs.ref_fpm }}
-        run: |
-          legacy="${LEGACY_IMAGE,,}"
-          for flavor in "" -fpm; do
-            var="TAGS${flavor//-/_}"; var="${var^^}"; read -ra tags <<< "${!var}"
-            var="REF${flavor//-/_}"; var="${var^^}"; ref="${!var}"
-            args=()
-            for t in "${tags[@]}"; do args+=(--tag "$legacy:${t##*:}"); done
-            docker buildx imagetools create "${args[@]}" "$ref"
-            cosign sign --yes --recursive "$legacy@${ref#*@}"
-            echo "- mirrored${flavor}: \`$legacy@${ref#*@}\`" >> "$GITHUB_STEP_SUMMARY"
           done
 
       # Marker that lets later runs skip this version. Written last, so a

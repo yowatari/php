@@ -11,7 +11,7 @@ docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm (listen 9000
 
 Tags follow the Docker official image's shape: `8.5` / `8.5-fpm` track the branch, `8.5.12` / `8.5.12-r0` pin a build. The PHP package inside the image is `php-yowatari` (`-fpm`, `-dev`), named apart from Wolfi's `php-X.Y` so the two never collide.
 
-> **Moving from `ghcr.io/yowatari/php-oct2026-hotfix`.** This repository was renamed from `yowatari/php-oct2026-hotfix`. Every publish is still copied and signed under the old image name until at least 2026-12-31, so nothing breaks today, but switch your `FROM` to `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`; update the `--certificate-identity-regexp` you verify against.
+> **Renamed from `yowatari/php-oct2026-hotfix`.** The old image name `ghcr.io/yowatari/php-oct2026-hotfix` is no longer updated and does not get today's or later fixes; use `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`.
 
 The repository started as a demo of shipping the October 2026 RCE fix on the same day it was released. That write-up follows, with image names updated.
 
@@ -221,7 +221,7 @@ scripts/bump.sh        # move every branch to its latest release on php.net
 scripts/bump.sh 8.6    # also add a new branch once its first GA is on php.net
 ```
 
-`bump.sh` prints each change (`8.5: 8.5.12 -> 8.5.13`) and leaves the file untouched if php.net does not list a release yet. Merging the PR to main publishes, signs and mirrors the changed versions; unchanged ones are skipped.
+`bump.sh` prints each change (`8.5: 8.5.12 -> 8.5.13`) and leaves the file untouched if php.net does not list a release yet. Merging the PR to main publishes and signs the changed versions; unchanged ones are skipped.
 
 | Situation | What to do |
 |---|---|
