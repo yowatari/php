@@ -8,6 +8,7 @@ on:
   push:
     branches: [main]
     paths:
+      - versions.json
       - melange.tmpl.yaml
       - apko.tmpl.yaml
       - legacy-deps.inc.yaml
@@ -16,6 +17,7 @@ on:
       - .github/workflows/build.yml
   pull_request:
     paths:
+      - versions.json
       - melange.tmpl.yaml
       - apko.tmpl.yaml
       - legacy-deps.inc.yaml
@@ -28,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       versions:
-        description: 'JSON list of PHP versions, e.g. ["8.5.12","7.4.33"]'
+        description: 'JSON list of PHP versions, e.g. ["8.5.12","7.4.33"] (default: versions.json)'
         required: false
         default: ""
       force:
@@ -44,9 +46,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Supported branches: fixed tarballs. EOL branches: last tarball + patches/<branch>/.
-  DEFAULT_VERSIONS: '["8.5.12","8.4.27","8.3.36","8.2.35","8.1.34","8.0.30","7.4.33"]'
   IMAGE: ghcr.io/${{ github.repository }}
+  # The image name before the repository was renamed to yowatari/php. Every
+  # publish is also copied and signed there so existing users keep getting
+  # fixes; drop this (and the mirror step) once the transition period ends.
+  # Empty in forks and before the rename, which skips the mirror step.
+  LEGACY_IMAGE: ${{ github.repository == 'yowatari/php' && 'ghcr.io/yowatari/php-oct2026-hotfix' || '' }}
   PUBLISH: ${{ github.event_name != 'pull_request' }}
   # The schedule exists to refresh base packages, so it always republishes.
   FORCE: ${{ inputs.force || github.event_name == 'schedule' }}
@@ -57,10 +62,13 @@ jobs:
     outputs:
       versions: ${{ steps.v.outputs.versions }}
     steps:
+      - uses: actions/checkout@v7
+      # versions.json: supported branches at their latest tarball, EOL branches
+      # at their last tarball + patches/<branch>/. scripts/bump.sh updates it.
       - id: v
         env:
           INPUT: ${{ inputs.versions }}
-        run: echo "versions=${INPUT:-$DEFAULT_VERSIONS}" >> "$GITHUB_OUTPUT"
+        run: echo "versions=${INPUT:-$(jq -c . versions.json)}" >> "$GITHUB_OUTPUT"
 
   # One native build per arch; no emulation in the compile path.
   # Runners are pinned to 24.04 (x64 and arm) instead of ubuntu-latest, which
@@ -205,12 +213,12 @@ jobs:
           for flavor in cli fpm; do
             cfg="$DIR/apko.yaml"; [ "$flavor" = fpm ] && cfg="$DIR/apko-fpm.yaml"
             docker run --rm -v "$PWD":"$PWD" -w "$PWD" cgr.dev/chainguard/apko:latest \
-              build "$cfg" "php-hotfix:$flavor" "$DIR/image-$flavor.tar" \
+              build "$cfg" "php-local:$flavor" "$DIR/image-$flavor.tar" \
               -r "$PWD/$DIR/packages"
             docker load < "$DIR/image-$flavor.tar"
           done
-          scripts/smoke.sh php-hotfix:cli-amd64 php-hotfix:fpm-amd64 "$VERSION" linux/amd64
-          scripts/smoke.sh php-hotfix:cli-arm64 php-hotfix:fpm-arm64 "$VERSION" linux/arm64
+          scripts/smoke.sh php-local:cli-amd64 php-local:fpm-amd64 "$VERSION" linux/amd64
+          scripts/smoke.sh php-local:cli-arm64 php-local:fpm-arm64 "$VERSION" linux/arm64
 
       # ---- main / schedule / dispatch: publish, test, sign ----
       - name: Image tags
@@ -324,6 +332,27 @@ jobs:
               --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/.github/workflows/build.yml@" \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com > /dev/null
             echo "verified $tag"
+          done
+
+      # Same index digest, same tags, under the pre-rename name, signed there
+      # too (cosign signatures live next to the image, per repository).
+      - name: Mirror to the legacy image name
+        if: steps.skip.outputs.skip != 'true' && env.PUBLISH == 'true' && env.LEGACY_IMAGE != ''
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          TAGS_FPM: ${{ steps.tags.outputs.tags_fpm }}
+          REF: ${{ steps.publish.outputs.ref }}
+          REF_FPM: ${{ steps.publish.outputs.ref_fpm }}
+        run: |
+          legacy="${LEGACY_IMAGE,,}"
+          for flavor in "" -fpm; do
+            var="TAGS${flavor//-/_}"; var="${var^^}"; read -ra tags <<< "${!var}"
+            var="REF${flavor//-/_}"; var="${var^^}"; ref="${!var}"
+            args=()
+            for t in "${tags[@]}"; do args+=(--tag "$legacy:${t##*:}"); done
+            docker buildx imagetools create "${args[@]}" "$ref"
+            cosign sign --yes --recursive "$legacy@${ref#*@}"
+            echo "- mirrored${flavor}: \`$legacy@${ref#*@}\`" >> "$GITHUB_STEP_SUMMARY"
           done
 
       # Marker that lets later runs skip this version. Written last, so a

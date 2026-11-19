@@ -22,7 +22,7 @@
     },
     {
       "name": "run-all",
-      "cmd": "for t in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do printf '%s -> ' \"$t\"; docker run --rm ghcr.io/yowatari/php-oct2026-hotfix:$t -r 'echo \"PHP \", PHP_VERSION, \" uid=\", posix_getuid(), PHP_EOL;'; done",
+      "cmd": "for t in 8.5 8.4 8.3 8.2 8.1 8.0 7.4; do printf '%s -> ' \"$t\"; docker run --rm ghcr.io/yowatari/php:$t -r 'echo \"PHP \", PHP_VERSION, \" uid=\", posix_getuid(), PHP_EOL;'; done",
       "expect": [
         "8.5 -> PHP 8.5.12 uid=65532",
         "8.4 -> PHP 8.4.27 uid=65532",
@@ -35,7 +35,7 @@
     },
     {
       "name": "platforms",
-      "cmd": "docker buildx imagetools inspect ghcr.io/yowatari/php-oct2026-hotfix:7.4 | grep Platform",
+      "cmd": "docker buildx imagetools inspect ghcr.io/yowatari/php:7.4 | grep Platform",
       "expect": [
         "Platform:  linux/amd64",
         "Platform:  linux/arm64"
@@ -43,14 +43,14 @@
     },
     {
       "name": "no-shell",
-      "cmd": "docker run --rm --entrypoint /bin/sh ghcr.io/yowatari/php-oct2026-hotfix:8.5 -c true 2>&1 | grep -o 'stat /bin/sh: no such file or directory'",
+      "cmd": "docker run --rm --entrypoint /bin/sh ghcr.io/yowatari/php:8.5 -c true 2>&1 | grep -o 'stat /bin/sh: no such file or directory'",
       "expect": [
         "stat /bin/sh: no such file or directory"
       ]
     },
     {
       "name": "sbom-74",
-      "cmd": "docker run --rm ghcr.io/yowatari/php-oct2026-hotfix:7.4 -r '$j = json_decode(file_get_contents(glob(\"/var/lib/db/sbom/php-hotfix-7*.spdx.json\")[0]), true); foreach ($j[\"packages\"] as $p) if ($p[\"downloadLocation\"] !== \"NOASSERTION\") echo $p[\"downloadLocation\"], PHP_EOL;'",
+      "cmd": "docker run --rm ghcr.io/yowatari/php:7.4 -r '$j = json_decode(file_get_contents(glob(\"/var/lib/db/sbom/php-yowatari-7*.spdx.json\")[0]), true); foreach ($j[\"packages\"] as $p) if ($p[\"downloadLocation\"] !== \"NOASSERTION\") echo $p[\"downloadLocation\"], PHP_EOL;'",
       "expect": [
         "https://www.php.net/distributions/php-7.4.33.tar.xz",
         "https://www.openssl.org/source/openssl-1.1.1w.tar.gz",
@@ -61,24 +61,24 @@
       "name": "hash-stable",
       "cmd": "for i in 1 2; do scripts/render.sh 8.5.12 | grep _hash; done",
       "expect": [
-        "melange_hash=818466636be3ec99",
-        "image_hash=942314a2456dd338",
-        "melange_hash=818466636be3ec99",
-        "image_hash=942314a2456dd338"
+        "melange_hash=076d90f2b024fb2c",
+        "image_hash=bf891fdeee0e7183",
+        "melange_hash=076d90f2b024fb2c",
+        "image_hash=bf891fdeee0e7183"
       ]
     },
     {
       "name": "copy-app",
-      "cmd": "docker build -q -t php-hotfix-copy-app examples/copy-app >/dev/null && docker run --rm php-hotfix-copy-app",
+      "cmd": "docker build -q -t php-copy-app examples/copy-app >/dev/null && docker run --rm php-copy-app",
       "expect": [
         "hello from 8.5.12"
       ]
     },
     {
       "name": "cosign-verify",
-      "cmd": "cosign verify ghcr.io/yowatari/php-oct2026-hotfix:8.5 --certificate-identity-regexp '^https://github.com/yowatari/php-oct2026-hotfix/.github/workflows/build.yml@' --certificate-oidc-issuer https://token.actions.githubusercontent.com 2>&1 >/dev/null",
+      "cmd": "cosign verify ghcr.io/yowatari/php:8.5 --certificate-identity-regexp '^https://github.com/yowatari/php/.github/workflows/build.yml@' --certificate-oidc-issuer https://token.actions.githubusercontent.com 2>&1 >/dev/null",
       "expect": [
-        "Verification for ghcr.io/yowatari/php-oct2026-hotfix:8.5 --",
+        "Verification for ghcr.io/yowatari/php:8.5 --",
         "The cosign claims were validated",
         "The code-signing certificate was verified using trusted certificate authority certificates"
       ]

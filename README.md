@@ -1,12 +1,29 @@
-# Can we ship a fixed PHP for an RCE without waiting for the official images?
+# PHP images: the latest release of every branch, signed, distroless
 
 English | [日本語](README.ja.md)
+
+`ghcr.io/yowatari/php` ships PHP built from php.net's tarballs as minimal images (no shell, nonroot, amd64 + arm64), with SBOMs and cosign signatures. Every branch listed in [versions.json](versions.json) is kept at its latest release; EOL branches (7.4 / 8.0 / 8.1) get the PHP security team's official backports on top of their final tarball.
+
+```sh
+docker run --rm ghcr.io/yowatari/php:8.5 -v
+docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm (listen 9000)
+```
+
+Tags follow the Docker official image's shape: `8.5` / `8.5-fpm` track the branch, `8.5.12` / `8.5.12-r0` pin a build. The PHP package inside the image is `php-yowatari` (`-fpm`, `-dev`), named apart from Wolfi's `php-X.Y` so the two never collide.
+
+> **Moving from `ghcr.io/yowatari/php-oct2026-hotfix`.** This repository was renamed from `yowatari/php-oct2026-hotfix`. Every publish is still copied and signed under the old image name until at least 2026-12-31, so nothing breaks today, but switch your `FROM` to `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`; update the `--certificate-identity-regexp` you verify against.
+
+The repository started as a demo of shipping the October 2026 RCE fix on the same day it was released. That write-up follows, with image names updated.
+
+---
+
+# Case study: shipping a fixed PHP for an RCE without waiting for the official images
 
 > Intended readers: people using Docker and GitHub Actions who wait for official image updates when a CVE drops. Reading time: 1 minute for "0. At a glance", 10 minutes for the whole thing.
 
 On 2026-10-21, two unauthenticated RCE vulnerabilities in PHP were disclosed: [CVE-2026-109618](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w) (state corruption on OOM) and [CVE-2026-109619](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp) (state left over between requests) ([PHP Foundation post](https://thephp.foundation/blog/2026/10/21/todays-php-security-release-and-how-were-strengthening-php-security/)).
 
-This repository is a demo that, on the day the fixes were released, published fixed images with signatures and SBOMs (software bills of materials) for 7 versions (7.4 to 8.5) to ghcr.io.
+This repository, then named `php-oct2026-hotfix`, published fixed images with signatures and SBOMs (software bills of materials) for 7 versions (7.4 to 8.5) to ghcr.io on the day the fixes were released.
 
 <details><summary>How this document is organized</summary>
 
@@ -36,11 +53,11 @@ The `output` blocks in this document are regenerated and checked with the comman
 | Small attack surface | distroless (no shell), runs as uid 65532, amd64 and arm64 | Section 4 |
 | Light to operate | PHP is not recompiled when inputs are unchanged. A PR with a warm cache took 1 min 16 s | Section 5 |
 
-All images live at `ghcr.io/yowatari/php-oct2026-hotfix` and can be pulled without authentication.
+All images live at `ghcr.io/yowatari/php` and can be pulled without authentication.
 
 ```sh
-docker run --rm ghcr.io/yowatari/php-oct2026-hotfix:8.5 -v
-docker run -d -p 9000:9000 ghcr.io/yowatari/php-oct2026-hotfix:8.5-fpm   # php-fpm (listen 9000)
+docker run --rm ghcr.io/yowatari/php:8.5 -v
+docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm (listen 9000)
 ```
 
 ## 1. Ship without waiting
@@ -49,10 +66,10 @@ Once the official fixed tarball is on php.net, you bump the version number and p
 
 | Run | What it did | Duration |
 |---|---|---|
-| [run #1](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39644000263) | First run. push → build → publish → smoke test → cosign signing (8.5.12, x86_64) | About 6 min 40 s (17:27:46 → 17:34:28 UTC) |
-| [run #5](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39706478895) | Build and test 7 versions × amd64/arm64 with no cache | About 9 min |
-| [run #7](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39708192105) | Same inputs again (with cache) | 1 min 16 s |
-| [run #12](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39712391135) | Publish 7 versions × amd64/arm64 on main, through smoke test, signing, verify and scan (with cache) | About 4 min |
+| [run #1](https://github.com/yowatari/php/actions/runs/39644000263) | First run. push → build → publish → smoke test → cosign signing (8.5.12, x86_64) | About 6 min 40 s (17:27:46 → 17:34:28 UTC) |
+| [run #5](https://github.com/yowatari/php/actions/runs/39706478895) | Build and test 7 versions × amd64/arm64 with no cache | About 9 min |
+| [run #7](https://github.com/yowatari/php/actions/runs/39708192105) | Same inputs again (with cache) | 1 min 16 s |
+| [run #12](https://github.com/yowatari/php/actions/runs/39712391135) | Publish 7 versions × amd64/arm64 on main, through smoke test, signing, verify and scan (with cache) | About 4 min |
 
 We don't have to wait because we build PHP ourselves from the php.net tarball rather than using Wolfi's packages. When work started (around 16:00 UTC on 2026-10-21), the published Wolfi `php-8.5` was 8.5.11 and `php-8.4` was 8.4.26, both still unfixed (these are the values observed at that time; they may have been updated since).
 
@@ -113,7 +130,7 @@ The concern with self-built images is whether you can check "what's inside and w
 | Distribution | Signed with cosign. No keys are held: "keyless signing" obtains a short-lived certificate using the identity (OIDC token) issued by GitHub Actions |
 | Scan | Chainguard's vul-scans Action attaches the results of the vulnerability scanners Trivy and Grype to the image as signed attestations |
 
-**The SBOM records not only the PHP source but also where the bundled OpenSSL and libxml2 came from.** For the 7.4 image, the sources listed in the php-hotfix SBOM are:
+**The SBOM records not only the PHP source but also where the bundled OpenSSL and libxml2 came from.** For the 7.4 image, the sources listed in the php-yowatari SBOM are:
 
 <!-- output: sbom-74 -->
 ```
@@ -125,14 +142,14 @@ https://download.gnome.org/sources/libxml2/2.11/libxml2-2.11.9.tar.xz
 You can confirm that the signature was made on GitHub Actions by this repository's workflow with the following command.
 
 ```sh
-cosign verify ghcr.io/yowatari/php-oct2026-hotfix:8.5 \
-  --certificate-identity-regexp '^https://github.com/yowatari/php-oct2026-hotfix/.github/workflows/build.yml@' \
+cosign verify ghcr.io/yowatari/php:8.5 \
+  --certificate-identity-regexp '^https://github.com/yowatari/php/.github/workflows/build.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 <!-- output: cosign-verify -->
 ```
-Verification for ghcr.io/yowatari/php-oct2026-hotfix:8.5 --
+Verification for ghcr.io/yowatari/php:8.5 --
   - The cosign claims were validated
   - The code-signing certificate was verified using trusted certificate authority certificates
 ```
@@ -162,7 +179,7 @@ Because there is no shell, `RUN` can't be used when this image is the `FROM` of 
 
 <!-- source: examples/copy-app/Dockerfile -->
 ```dockerfile
-FROM ghcr.io/yowatari/php-oct2026-hotfix:8.5
+FROM ghcr.io/yowatari/php:8.5
 COPY app.php /app/app.php
 CMD ["/app/app.php"]
 ```
@@ -189,17 +206,26 @@ CI only rebuilds what has changed inputs. `scripts/render.sh` computes `melange_
 
 The patches applied to EOL 7.4 / 8.0 / 8.1 are minimal mitigations addressing only these two issues. Other unfixed vulnerabilities remain, and the bundled OpenSSL 1.1.1w is also out of upstream support. Use them as a stopgap until you move to 8.2 or later.
 
-Whether a vulnerability scanner reports "fixed" depends on the scanner's data. PHP in this image uses its own package name (`php-hotfix`), so scanner results are not proof of the fix. Confirm the fix through the version, the patches, and the SBOM.
+Whether a vulnerability scanner reports "fixed" depends on the scanner's data. PHP in this image uses its own package name (`php-yowatari`), so scanner results are not proof of the fix. Confirm the fix through the version, the patches, and the SBOM.
 
 No tests were run that actually exploit the vulnerabilities to confirm they are fixed.
 
-This repository is a demo, and the images are hosted on a personal account's (`yowatari`) ghcr. If you want to use them as a production `FROM`, fork the repository into your own organization and publish to your own ghcr. The workflow publishes to `ghcr.io/<repository name>`, so it works as is.
+The images are hosted on a personal account's (`yowatari`) ghcr. If you want to use them as a production `FROM`, fork the repository into your own organization and publish to your own ghcr. The workflow publishes to `ghcr.io/<repository name>`, so it works as is.
 
-## When the next CVE comes
+## Release procedure
+
+[versions.json](versions.json) is the single list of versions CI builds. Updating it goes through a PR, so the new version is built and smoke-tested before anything is published.
+
+```sh
+scripts/bump.sh        # move every branch to its latest release on php.net
+scripts/bump.sh 8.6    # also add a new branch once its first GA is on php.net
+```
+
+`bump.sh` prints each change (`8.5: 8.5.12 -> 8.5.13`) and leaves the file untouched if php.net does not list a release yet. Merging the PR to main publishes, signs and mirrors the changed versions; unchanged ones are skipped.
 
 | Situation | What to do |
 |---|---|
-| A fixed tarball is out on php.net | Bump `DEFAULT_VERSIONS` in `.github/workflows/build.yml` and merge to main. render.sh fetches the sha256 |
+| A fixed tarball is out on php.net | Run `scripts/bump.sh`, open a PR, merge it after CI passes. render.sh fetches the sha256 |
 | No tarball yet, only a patch | Put `patches/<major.minor>/NNNN-*.patch` in place and merge to main. The build becomes `-r1` |
 | Need to ship just one version urgently | Pass JSON such as `["8.5.13"]` to `versions` in `workflow_dispatch` |
 
@@ -218,7 +244,9 @@ Extensions are a minimal set (mbstring, openssl, curl, zlib, mysqli / pdo_mysql,
 
 | Path | Contents |
 |---|---|
-| `melange.tmpl.yaml` | PHP build definition. `php-hotfix` / `-fpm` / `-dev` subpackages and tests |
+| `versions.json` | The PHP versions CI builds and publishes |
+| `scripts/bump.sh` | Updates `versions.json` from php.net |
+| `melange.tmpl.yaml` | PHP build definition. `php-yowatari` / `-fpm` / `-dev` subpackages and tests |
 | `legacy-deps.inc.yaml` | OpenSSL 1.1.1w and libxml2 2.11.9 for 7.4 / 8.0 / 8.1 |
 | `apko.tmpl.yaml` | Image definitions (CLI and FPM) |
 | `patches/<branch>/` | Official backports for EOL branches |
@@ -237,7 +265,7 @@ docker run --privileged --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange
   build build/8.5.12/melange.yaml --arch x86_64 --signing-key melange.rsa \
   --source-dir build/8.5.12/src --out-dir build/8.5.12/packages
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/apko \
-  build build/8.5.12/apko.yaml php-hotfix:8.5.12 build/8.5.12/image.tar \
+  build build/8.5.12/apko.yaml php-local:8.5.12 build/8.5.12/image.tar \
   -r /work/build/8.5.12/packages -k /work/melange.rsa.pub   # for FPM, use apko-fpm.yaml
 docker load < build/8.5.12/image.tar
 ```
