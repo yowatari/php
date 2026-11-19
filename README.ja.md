@@ -1,12 +1,29 @@
-# 公式イメージを待たずに、PHP の RCE 修正版を自分たちで出せるか
+# PHP イメージ：各ブランチの最新リリースを、署名付き・distroless で
 
 [English](README.md) | 日本語
+
+`ghcr.io/yowatari/php` は、php.net の tarball からビルドした PHP を、最小構成のイメージ（シェルなし・nonroot・amd64 と arm64）として、SBOM と cosign 署名を付けて出しています。[versions.json](versions.json) にあるブランチは、それぞれ最新のリリースに保ちます。EOL のブランチ（7.4 / 8.0 / 8.1）は、最終版の tarball に PHP セキュリティチームの公式バックポートを当てて出します。
+
+```sh
+docker run --rm ghcr.io/yowatari/php:8.5 -v
+docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm（listen 9000）
+```
+
+タグの形は Docker 公式イメージに合わせています。`8.5` / `8.5-fpm` はブランチの最新を指し、`8.5.12` / `8.5.12-r0` は特定のビルドに固定します。イメージ内の PHP のパッケージ名は `php-yowatari`（`-fpm`、`-dev`）です。Wolfi の `php-X.Y` と衝突しないよう、別の名前にしています。
+
+> **`ghcr.io/yowatari/php-oct2026-hotfix` を使っている場合。** このリポジトリは `yowatari/php-oct2026-hotfix` から名前を変えました。少なくとも 2026-12-31 までは、publish のたびに旧イメージ名にも同じイメージをコピーして署名するので、すぐには壊れません。それでも `FROM` は `ghcr.io/yowatari/php` に切り替えてください。名前を変えた後の署名の ID は `https://github.com/yowatari/php/.github/workflows/build.yml@…` です。検証に使う `--certificate-identity-regexp` も変えてください。
+
+このリポジトリは、2026 年 10 月の RCE の修正版を、公開当日に出すデモとして始まりました。以下はその記録です（イメージ名は新しい名前に直しています）。
+
+---
+
+# 事例：公式イメージを待たずに、PHP の RCE 修正版を自分たちで出せるか
 
 > 想定読者：CVE が出たら公式イメージの更新を待っている、Docker と GitHub Actions を使う人。所要時間：「0. 一枚で」だけなら 1 分、全体で 10 分。
 
 2026-10-21、PHP に認証なしで RCE できる脆弱性が 2 件公開されました。[CVE-2026-109618](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w)（OOM 時の状態破損）と [CVE-2026-109619](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp)（リクエスト間に残った状態）です（[PHP Foundation の記事](https://thephp.foundation/blog/2026/10/21/todays-php-security-release-and-how-were-strengthening-php-security/)）。
 
-このリポジトリは、修正版が公開された当日に、署名と SBOM（イメージの部品表）の付いた修正版イメージを 7 バージョン分（7.4〜8.5）ghcr.io に出したデモです。
+このリポジトリ（当時の名前は `php-oct2026-hotfix`）は、修正版が公開された当日に、署名と SBOM（イメージの部品表）の付いた修正版イメージを 7 バージョン分（7.4〜8.5）ghcr.io に出しました。
 
 <details><summary>この資料の構成</summary>
 
@@ -36,11 +53,11 @@
 | 攻撃面が小さい | distroless（シェルなし）、uid 65532 で動く、amd64 と arm64 | 4 節 |
 | 運用が軽い | 入力が同じなら PHP を再コンパイルしない。キャッシュが効いた PR は 1 分 16 秒 | 5 節 |
 
-すべてのイメージは `ghcr.io/yowatari/php-oct2026-hotfix` にあり、認証なしで pull できます。
+すべてのイメージは `ghcr.io/yowatari/php` にあり、認証なしで pull できます。
 
 ```sh
-docker run --rm ghcr.io/yowatari/php-oct2026-hotfix:8.5 -v
-docker run -d -p 9000:9000 ghcr.io/yowatari/php-oct2026-hotfix:8.5-fpm   # php-fpm（listen 9000）
+docker run --rm ghcr.io/yowatari/php:8.5 -v
+docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm（listen 9000）
 ```
 
 ## 1. 待たずに出せる
@@ -49,10 +66,10 @@ docker run -d -p 9000:9000 ghcr.io/yowatari/php-oct2026-hotfix:8.5-fpm   # php-f
 
 | 実行 | 内容 | 所要時間 |
 |---|---|---|
-| [run #1](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39644000263) | 初回。push → ビルド → publish → スモークテスト → cosign 署名（8.5.12、x86_64） | 約 6 分 40 秒（17:27:46 → 17:34:28 UTC） |
-| [run #5](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39706478895) | 7 バージョン × amd64・arm64 をキャッシュなしでビルドしてテスト | 約 9 分 |
-| [run #7](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39708192105) | 同じ入力でもう一度（キャッシュあり） | 1 分 16 秒 |
-| [run #12](https://github.com/yowatari/php-oct2026-hotfix/actions/runs/39712391135) | main で 7 バージョン × amd64・arm64 を publish し、スモークテスト・署名・verify・スキャンまで（キャッシュあり） | 約 4 分 |
+| [run #1](https://github.com/yowatari/php/actions/runs/39644000263) | 初回。push → ビルド → publish → スモークテスト → cosign 署名（8.5.12、x86_64） | 約 6 分 40 秒（17:27:46 → 17:34:28 UTC） |
+| [run #5](https://github.com/yowatari/php/actions/runs/39706478895) | 7 バージョン × amd64・arm64 をキャッシュなしでビルドしてテスト | 約 9 分 |
+| [run #7](https://github.com/yowatari/php/actions/runs/39708192105) | 同じ入力でもう一度（キャッシュあり） | 1 分 16 秒 |
+| [run #12](https://github.com/yowatari/php/actions/runs/39712391135) | main で 7 バージョン × amd64・arm64 を publish し、スモークテスト・署名・verify・スキャンまで（キャッシュあり） | 約 4 分 |
 
 待たなくてよいのは、Wolfi のパッケージではなく、php.net の tarball から自分で PHP をビルドしているためです。作業を始めた時点（2026-10-21 16 時台 UTC）で、公開されている Wolfi の `php-8.5` は 8.5.11、`php-8.4` は 8.4.26 で、まだ修正前でした（観測時点の値です。今は更新されている可能性があります）。
 
@@ -113,7 +130,7 @@ legacy=1
 | 配布 | cosign で署名する。鍵は持たず、GitHub Actions が発行する ID（OIDC トークン）で一時的な証明書を取る「キーレス署名」 |
 | スキャン | Chainguard の vul-scans Action が、脆弱性スキャナ Trivy と Grype の結果を、署名付きの添付情報（attestation）としてイメージに付ける |
 
-**SBOM には、PHP のソースだけでなく、同梱した OpenSSL と libxml2 の取得元まで記録されています。** 7.4 のイメージで、php-hotfix の SBOM に書かれた取得元を表示すると次のとおりです。
+**SBOM には、PHP のソースだけでなく、同梱した OpenSSL と libxml2 の取得元まで記録されています。** 7.4 のイメージで、php-yowatari の SBOM に書かれた取得元を表示すると次のとおりです。
 
 <!-- output: sbom-74 -->
 ```
@@ -125,14 +142,14 @@ https://download.gnome.org/sources/libxml2/2.11/libxml2-2.11.9.tar.xz
 署名は、このリポジトリのワークフローが GitHub Actions 上で付けたものかを、次のコマンドで確かめられます。
 
 ```sh
-cosign verify ghcr.io/yowatari/php-oct2026-hotfix:8.5 \
-  --certificate-identity-regexp '^https://github.com/yowatari/php-oct2026-hotfix/.github/workflows/build.yml@' \
+cosign verify ghcr.io/yowatari/php:8.5 \
+  --certificate-identity-regexp '^https://github.com/yowatari/php/.github/workflows/build.yml@' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
 <!-- output: cosign-verify -->
 ```
-Verification for ghcr.io/yowatari/php-oct2026-hotfix:8.5 --
+Verification for ghcr.io/yowatari/php:8.5 --
   - The cosign claims were validated
   - The code-signing certificate was verified using trusted certificate authority certificates
 ```
@@ -162,7 +179,7 @@ arm64 は、CI の `ubuntu-24.04-arm` ランナーで、エミュレーション
 
 <!-- source: examples/copy-app/Dockerfile -->
 ```dockerfile
-FROM ghcr.io/yowatari/php-oct2026-hotfix:8.5
+FROM ghcr.io/yowatari/php:8.5
 COPY app.php /app/app.php
 CMD ["/app/app.php"]
 ```
@@ -189,17 +206,26 @@ CI が作り直すのは、入力が変わったものだけです。`scripts/re
 
 EOL の 7.4 / 8.0 / 8.1 に当てたパッチは、今回の 2 件だけに対処する最小限の緩和策です。ほかの未修正の脆弱性は残り、同梱した OpenSSL 1.1.1w もアップストリームのサポートが終わっています。8.2 以降へ移るまでのつなぎとして使ってください。
 
-脆弱性スキャナが「修正済み」と判定するかは、スキャナ側のデータ次第です。このイメージの PHP は独自のパッケージ名（`php-hotfix`）なので、スキャナの結果は修正の証明になりません。修正済みかは、バージョン・パッチ・SBOM で確かめてください。
+脆弱性スキャナが「修正済み」と判定するかは、スキャナ側のデータ次第です。このイメージの PHP は独自のパッケージ名（`php-yowatari`）なので、スキャナの結果は修正の証明になりません。修正済みかは、バージョン・パッチ・SBOM で確かめてください。
 
 脆弱性を実際に攻撃して、修正されていることを確かめるテストはしていません。
 
-このリポジトリはデモで、イメージは個人のアカウント（`yowatari`）の ghcr に置いています。本番の `FROM` に使うなら、リポジトリを自分たちの organization に fork して、自分たちの ghcr に出してください。ワークフローは `ghcr.io/<リポジトリ名>` に出すので、そのまま動きます。
+イメージは個人のアカウント（`yowatari`）の ghcr に置いています。本番の `FROM` に使うなら、リポジトリを自分たちの organization に fork して、自分たちの ghcr に出してください。ワークフローは `ghcr.io/<リポジトリ名>` に出すので、そのまま動きます。
 
-## 次の CVE が来たら
+## リリースの手順
+
+CI がビルドするバージョンの一覧は [versions.json](versions.json) だけです。これを PR で更新するので、新しいバージョンは publish の前にビルドとスモークテストを通ります。
+
+```sh
+scripts/bump.sh        # すべてのブランチを php.net の最新リリースに上げる
+scripts/bump.sh 8.6    # 新しいブランチの最初の GA が php.net に出たら、それも加える
+```
+
+`bump.sh` は変更を 1 行ずつ表示します（`8.5: 8.5.12 -> 8.5.13`）。php.net にまだリリースがなければ、ファイルは変えずに失敗します。PR を main にマージすると、変わったバージョンだけを publish・署名し、旧イメージ名にもコピーします。
 
 | 状況 | やること |
 |---|---|
-| 修正版 tarball が php.net に出た | `.github/workflows/build.yml` の `DEFAULT_VERSIONS` を上げて main に入れる。sha256 は render.sh が取る |
+| 修正版 tarball が php.net に出た | `scripts/bump.sh` を実行して PR を出し、CI が通ったらマージする。sha256 は render.sh が取る |
 | tarball はまだで、パッチだけが出た | `patches/<major.minor>/NNNN-*.patch` を置いて main に入れる。ビルドは `-r1` になる |
 | 1 バージョンだけ急いで出したい | `workflow_dispatch` の `versions` に `["8.5.13"]` のような JSON を渡す |
 
@@ -218,7 +244,9 @@ EOL の 7.4 / 8.0 / 8.1 に当てたパッチは、今回の 2 件だけに対�
 
 | パス | 内容 |
 |---|---|
-| `melange.tmpl.yaml` | PHP のビルド定義。`php-hotfix` / `-fpm` / `-dev` のサブパッケージとテスト |
+| `versions.json` | CI がビルドして publish する PHP のバージョン |
+| `scripts/bump.sh` | `versions.json` を php.net の情報で更新する |
+| `melange.tmpl.yaml` | PHP のビルド定義。`php-yowatari` / `-fpm` / `-dev` のサブパッケージとテスト |
 | `legacy-deps.inc.yaml` | 7.4 / 8.0 / 8.1 用の OpenSSL 1.1.1w と libxml2 2.11.9 |
 | `apko.tmpl.yaml` | イメージの定義（CLI と FPM） |
 | `patches/<branch>/` | EOL ブランチ用の公式バックポート |
@@ -237,7 +265,7 @@ docker run --privileged --rm -v "$PWD":/work -w /work cgr.dev/chainguard/melange
   build build/8.5.12/melange.yaml --arch x86_64 --signing-key melange.rsa \
   --source-dir build/8.5.12/src --out-dir build/8.5.12/packages
 docker run --rm -v "$PWD":/work -w /work cgr.dev/chainguard/apko \
-  build build/8.5.12/apko.yaml php-hotfix:8.5.12 build/8.5.12/image.tar \
+  build build/8.5.12/apko.yaml php-local:8.5.12 build/8.5.12/image.tar \
   -r /work/build/8.5.12/packages -k /work/melange.rsa.pub   # FPM は apko-fpm.yaml
 docker load < build/8.5.12/image.tar
 ```

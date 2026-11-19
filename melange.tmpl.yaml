@@ -1,9 +1,9 @@
 # Rendered by scripts/render.sh -> build/<version>/melange.yaml. Do not edit build/ by hand.
 package:
-  name: php-hotfix
+  name: php-yowatari
   version: "@@VERSION@@"
   epoch: @@EPOCH@@
-  description: "PHP @@VERSION@@ from php.net + patches/@@BRANCH@@ (CVE-2026-109618 / CVE-2026-109619)"
+  description: "PHP @@VERSION@@ from php.net (+ patches/@@BRANCH@@ when present)"
   copyright:
     - license: PHP-3.01
   dependencies:
@@ -103,11 +103,11 @@ pipeline:
   - uses: strip
 
 subpackages:
-  - name: php-hotfix-fpm
+  - name: php-yowatari-fpm
     description: "PHP @@VERSION@@ FastCGI Process Manager"
     dependencies:
       runtime:
-        - php-hotfix
+        - php-yowatari
     pipeline:
       - runs: |
           mkdir -p "${{targets.subpkgdir}}/usr/bin" "${{targets.subpkgdir}}/etc/php"
@@ -120,11 +120,11 @@ subpackages:
             php-fpm -v | grep -q "PHP @@VERSION@@ "
             php-fpm -t -y /etc/php/php-fpm.conf
 
-  - name: php-hotfix-dev
+  - name: php-yowatari-dev
     description: "PHP @@VERSION@@ headers and phpize, for building extensions"
     dependencies:
       runtime:
-        - php-hotfix
+        - php-yowatari
         - autoconf
         - build-base
     pipeline:
