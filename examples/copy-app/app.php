@@ -1,1 +1,1 @@
-<?php echo "hello from ", PHP_VERSION, PHP_EOL;
+<?php echo "hello from PHP ", PHP_MAJOR_VERSION, ".", PHP_MINOR_VERSION, PHP_EOL;
