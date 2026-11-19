@@ -11,7 +11,7 @@ docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm (listen 9000
 
 Tags follow the Docker official image's shape: `8.5` / `8.5-fpm` track the branch, `8.5.12` / `8.5.12-r0` pin a build. The PHP package inside the image is `php-yowatari` (`-fpm`, `-dev`), named apart from Wolfi's `php-X.Y` so the two never collide.
 
-> **Renamed from `yowatari/php-oct2026-hotfix`.** The old image name `ghcr.io/yowatari/php-oct2026-hotfix` has been removed; use `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`.
+> **Renamed from `yowatari/php-oct2026-hotfix`.** The old image name `ghcr.io/yowatari/php-oct2026-hotfix` is no longer updated and does not get today's or later fixes; use `ghcr.io/yowatari/php`. Signatures made after the rename carry the identity `https://github.com/yowatari/php/.github/workflows/build.yml@…`.
 
 The repository started as a demo of shipping the October 2026 RCE fix on the same day it was released. That write-up follows, with image names updated.
 
@@ -186,7 +186,7 @@ CMD ["/app/app.php"]
 
 <!-- output: copy-app -->
 ```
-hello from 8.5.13
+hello from 8.5.12
 ```
 
 To add extensions, change the configure options in `melange.tmpl.yaml`, or make a separate melange package and add it to apko's `packages`. This procedure has not been tried yet (unverified).
@@ -235,7 +235,7 @@ scripts/bump.sh 8.6    # also add a new branch once its first GA is on php.net
 
 | Branch | Source | Tags (CLI / FPM) |
 |---|---|---|
-| 8.6 / 8.5 / 8.4 / 8.3 / 8.2 | php.net tarballs, latest of each branch (8.6.0 / 8.5.13 / 8.4.28 / 8.3.37 / 8.2.36) | `8.5.13`, `8.5.13-r0`, `8.5` / `8.5.13-fpm`, `8.5-fpm`, etc. |
+| 8.5 / 8.4 / 8.3 / 8.2 | php.net fixed tarballs (8.5.12 / 8.4.27 / 8.3.36 / 8.2.35) | `8.5.12`, `8.5.12-r0`, `8.5` / `8.5.12-fpm`, `8.5-fpm`, etc. |
 | 8.1 / 8.0 / 7.4 (EOL) | Final tarballs (8.1.34 / 8.0.30 / 7.4.33) + official backports | `7.4.33-r1`, `7.4` / `7.4.33-r1-fpm`, `7.4-fpm`, etc. |
 
 Extensions are a minimal set (mbstring, openssl, curl, zlib, mysqli / pdo_mysql, pdo_sqlite, bcmath, sockets, pcntl, etc. 8.5 has OPcache built in; 8.4 and earlier build opcache.so but leave it disabled by default). Edit the configure options in `melange.tmpl.yaml` if you need more.
