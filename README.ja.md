@@ -11,7 +11,7 @@ docker run -d -p 9000:9000 ghcr.io/yowatari/php:8.5-fpm   # php-fpm（listen 900
 
 タグの形は Docker 公式イメージに合わせています。`8.5` / `8.5-fpm` はブランチの最新を指し、`8.5.12` / `8.5.12-r0` は特定のビルドに固定します。イメージ内の PHP のパッケージ名は `php-yowatari`（`-fpm`、`-dev`）です。Wolfi の `php-X.Y` と衝突しないよう、別の名前にしています。
 
-> **`ghcr.io/yowatari/php-oct2026-hotfix` を使っている場合。** このリポジトリは `yowatari/php-oct2026-hotfix` から名前を変えました。少なくとも 2026-12-31 までは、publish のたびに旧イメージ名にも同じイメージをコピーして署名するので、すぐには壊れません。それでも `FROM` は `ghcr.io/yowatari/php` に切り替えてください。名前を変えた後の署名の ID は `https://github.com/yowatari/php/.github/workflows/build.yml@…` です。検証に使う `--certificate-identity-regexp` も変えてください。
+> **`yowatari/php-oct2026-hotfix` から名前を変えました。** 旧イメージ名 `ghcr.io/yowatari/php-oct2026-hotfix` は更新を止めたので、これ以降の修正は入りません。`ghcr.io/yowatari/php` を使ってください。名前を変えた後の署名の ID は `https://github.com/yowatari/php/.github/workflows/build.yml@…` です。
 
 このリポジトリは、2026 年 10 月の RCE の修正版を、公開当日に出すデモとして始まりました。以下はその記録です（イメージ名は新しい名前に直しています）。
 
@@ -221,7 +221,7 @@ scripts/bump.sh        # すべてのブランチを php.net の最新リリー�
 scripts/bump.sh 8.6    # 新しいブランチの最初の GA が php.net に出たら、それも加える
 ```
 
-`bump.sh` は変更を 1 行ずつ表示します（`8.5: 8.5.12 -> 8.5.13`）。php.net にまだリリースがなければ、ファイルは変えずに失敗します。PR を main にマージすると、変わったバージョンだけを publish・署名し、旧イメージ名にもコピーします。
+`bump.sh` は変更を 1 行ずつ表示します（`8.5: 8.5.12 -> 8.5.13`）。php.net にまだリリースがなければ、ファイルは変えずに失敗します。PR を main にマージすると、変わったバージョンだけを publish して署名します。
 
 | 状況 | やること |
 |---|---|
